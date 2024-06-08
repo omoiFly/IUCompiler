@@ -61,11 +61,11 @@
       [(Int n) (Int n)]
       [(Let x e body)
        (let (
-        [k (gensym x)]
-        [v ((uniquify-exp env) e)])
-       (let (
-        [new-env (dict-set env x k)])
-          (Let k v ((uniquify-exp new-env) body))))]
+             [k (gensym x)]
+             [v ((uniquify-exp env) e)])
+         (let (
+               [new-env (dict-set env x k)])
+           (Let k v ((uniquify-exp new-env) body))))]
       [(Prim op es)
        (Prim op (for/list ([e es]) ((uniquify-exp env) e)))])))
 
@@ -75,8 +75,34 @@
     [(Program info e) (Program info ((uniquify-exp '()) e))]))
 
 ;; remove-complex-opera* : Lvar -> Lvar^mon
+(define (rco-atom e)
+  (match e
+    [(Var x) (values (Var x) '())]
+    [(Int x) (values (Int x) '())]
+    [(Let x rhs body) 
+      (define new-rhs (rco-exp rhs))
+      (define-values (new-body body-ss) (rco-atom body))
+      (values new-body (append `((,x . ,new-rhs)) body-ss))]
+    [(Prim op es) 
+      (define-values (new-es sss) (for/lists (l1 l2) ([e es]) (rco-atom e)))
+      (define ss (append* sss))
+      (define tmp (gensym 'tmp))
+      (values (Var tmp) (append ss `((,tmp . ,(Prim op new-es)))))]))
+
+(define (rco-exp e)
+  (match e
+    [(Var x) (Var x)]
+    [(Int n) (Int n)]
+    [(Let x e body) (Let x (rco-exp e) (rco-exp body))]
+    [(Prim op es) 
+      (define-values (new-es sss) (for/lists (l1 l2) ([e es]) (rco-atom e)))
+      (define ss (append* sss))
+      (make-lets ss (Prim op new-es))]))
+
+
 (define (remove-complex-opera* p)
-  (error "TODO: code goes here (remove-complex-opera*)"))
+  (match p
+      [(Program info e) (Program info (rco-exp e))]))
 
 ;; explicate-control : Lvar^mon -> Cvar
 (define (explicate-control p)
@@ -105,7 +131,7 @@
   `(
     ;; Uncomment the following passes as you finish them.
     ("uniquify" ,uniquify ,interp-Lvar ,type-check-Lvar)
-    ;; ("remove complex opera*" ,remove-complex-opera* ,interp-Lvar ,type-check-Lvar)
+    ("remove complex opera*" ,remove-complex-opera* ,interp-Lvar ,type-check-Lvar)
     ;; ("explicate control" ,explicate-control ,interp-Cvar ,type-check-Cvar)
     ;; ("instruction selection" ,select-instructions ,interp-x86-0)
     ;; ("assign homes" ,assign-homes ,interp-x86-0)

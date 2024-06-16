@@ -128,16 +128,20 @@
   (match p
     [(Program info body) (CProgram info `((start . ,(explicate-tail body))))]))
 
+
+(define (select-instr-assign v e) )
+
 (define (instr-translation ast)
   (match ast 
-    [(Seq s t) s]))
+    [(Seq s t) s]
+    [(Return e) (append (select-instr-assign (Reg 'rax) e) `(,(Jmp 'conclusion)))]))
 
 ;; select-instructions : Cvar -> x86var
 (define (select-instructions ast)
   (match ast
     [(CProgram info blocks)
-     (define start (dict-ref blocks 'start))
-     (instr-translation start)]))
+     (define s (dict-ref blocks 'start))
+     `(X86Program info ((start . ,(instr-translation s))))]))
 
 ;; assign-homes : x86var -> x86var
 (define (assign-homes p)

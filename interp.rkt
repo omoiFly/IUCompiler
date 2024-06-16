@@ -224,6 +224,7 @@
            (error "interp-C-stmt unhandled" ast)]
           )))
 
+;; Cvar Interp --omoifly
     (define/public (interp-C ast)
       (debug "R1/interp-C" ast)
       (match ast
@@ -324,7 +325,7 @@
            ((interp-x86-instr env) ss)]
           [else
            (error "R1/interp-x86-block unhandled" ast)])))
-
+;; X86var interp --omoifly
     (define/public (interp-x86 env)
       (lambda (ast)
         (when (pair? ast)

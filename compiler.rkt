@@ -130,7 +130,14 @@
 
 (define (select-instr-assign v e)
   (match e
-    [(Int i) `(Instr 'movq (select-instr-atm e) v)]))
+    [(Int i) `(,(Instr 'movq `(,(select-instr-atm e) ,v)))]
+    [(Var x) `(,(Instr 'movq `(,(select-instr-atm e) ,v)))]
+    [(Prim 'read '()) `(,(Callq 'read_int)
+                        ,(Instr 'movq `(,(Reg 'rax) ,v)))]
+    [(Prim '+ `(,a1 ,a2)) `(,(Instr 'movq `(,(select-instr-atm a1) ,v))
+                          ,(Instr 'addq `(,(select-instr-atm a2) ,v)))]
+    [(Prim '- `(,a)) `(,(Instr 'movq `(,(select-instr-atm a) ,v))
+                      ,(Instr 'negq `(,v)))]))
 (define (select-instr-atm atm)
   (match atm
     [(Int i) (Imm i)]
@@ -146,7 +153,7 @@
     [(Assign v e) (select-instr-assign v e)]))
 (define (select-instr-tail ast)
   (match ast 
-    [(Seq s t) (append (select-instr-stmt s) select-instr-tail t)]
+    [(Seq s t) (append (select-instr-stmt s) (select-instr-tail t))]
     [(Return (Prim 'read '()))
      `((Callq 'read_int) (Jmp 'conclusion))] ;; special case?
     [(Return e) (append (select-instr-assign (Reg 'rax) e) `(,(Jmp 'conclusion)))]))
@@ -156,7 +163,7 @@
   (match ast
     [(CProgram info blocks)
      (define s (dict-ref blocks 'start))
-     `(X86Program info ((start . (Block '() ,(select-instr-tail s)))))]))
+     (X86Program info `((start . ,(Block '() (select-instr-tail s)))))]))
 
 ;; assign-homes : x86var -> x86var
 (define (assign-homes p)

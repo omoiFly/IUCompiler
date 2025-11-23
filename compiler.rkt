@@ -62,7 +62,7 @@
     (match e
       [(Var x) (Var (lookup x env))]
       [(Int n) (Int n)]
-      [(Let x e body) 
+      [(Let x e body)
        (let ([new-e ((uniquify-exp env) e)]
              [new-x (gensym x)])
           (Let new-x new-e ((uniquify-exp (extend-env env x new-x)) body)))]
@@ -74,9 +74,46 @@
   (match p
     [(Program info e) (Program info ((uniquify-exp '()) e))]))
 
+
+(define (rco-exp e)
+  (match e
+    [(Var x) (Var x)]
+    [(Int n) (Int n)]
+    [(Let x e body) (Let x (rco-exp e) (rco-exp body))]
+    [(Prim op es)
+     (let-values ([(new-args var-lists)
+                   (for/fold ([args '()]
+                              [var-lists '()])
+                             ([e es])
+                     (let-values ([(arg var-list) (rco-atom e)])
+                       (values (cons arg args)
+                               (append var-list var-lists))))])
+       (if (null? var-lists)
+           (Prim op (reverse new-args))
+           (make-lets var-lists (Prim op (reverse new-args)))))]))
+
+(define (rco-atom e)
+  (match e
+    [(Var x) (values (Var x) '())]
+    [(Int n) (values (Int n) '())]
+    [(Let x e body) (let ([tmp (gensym 'tmp)])
+                      (values (Var tmp)
+                              (list (cons tmp (Let x (rco-exp e) (rco-exp body))))))]
+    [(Prim op es) (let-values ([(new-args var-lists)
+                                (for/fold ([args '()]
+                                           [var-lists '()])
+                                          ([e es])
+                                  (let-values ([(arg var-list) (rco-atom e)])
+                                    (values (cons arg args)
+                                            (append var-list var-lists))))])
+                    (let ([tmp (gensym 'tmp)]
+                          [texp (Prim op (reverse new-args))])
+                      (values (Var tmp) (append var-lists (list (cons tmp texp))))))]))
+
 ;; remove-complex-opera* : Lvar -> Lvar^mon
 (define (remove-complex-opera* p)
-  (error "TODO: code goes here (remove-complex-opera*)"))
+  (match p
+    [(Program info e) (Program info (rco-exp e))]))
 
 ;; explicate-control : Lvar^mon -> Cvar
 (define (explicate-control p)
@@ -105,7 +142,7 @@
   `(
      ;; Uncomment the following passes as you finish them.
      ("uniquify" ,uniquify ,interp_Lvar ,type-check-Lvar)
-     ;; ("remove complex opera*" ,remove-complex-opera* ,interp_Lvar ,type-check-Lvar)
+     ("remove complex opera*" ,remove-complex-opera* ,interp_Lvar ,type-check-Lvar)
      ;; ("explicate control" ,explicate-control ,interp-Cvar ,type-check-Cvar)
      ;; ("instruction selection" ,select-instructions ,interp-pseudo-x86-0)
      ;; ("assign homes" ,assign-homes ,interp-x86-0)
